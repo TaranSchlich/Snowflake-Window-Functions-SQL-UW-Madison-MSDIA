@@ -1,4 +1,7 @@
 # Window Functions  
+**By: Taran Schlichtmann**
+**Date: 10/30/2025**
+
 SQL Analysis Using Snowflake
 
 Applying window functions, aggregation logic, and multi‑step analytical SQL patterns to severe weather event data stored in Snowflake. The assignment required writing SQL, following a style guide, and exporting results into an Excel workbook with separate tabs for each query.
