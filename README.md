@@ -1,5 +1,6 @@
 # Window Functions  
 **By: Taran Schlichtmann**
+
 **Date: 10/30/2025**
 
 SQL Analysis Using Snowflake
