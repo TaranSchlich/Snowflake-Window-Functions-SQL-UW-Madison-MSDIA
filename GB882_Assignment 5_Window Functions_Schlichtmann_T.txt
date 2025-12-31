@@ -1,0 +1,159 @@
+GB883
+Assignment 5 - Window Functions
+By Taran Schlichtmann
+
+/* Top 5 most common sources of severe weather information ordered by number of events descending */
+
+SELECT 
+source, 
+COUNT (*) AS event_count
+FROM 
+severe_weather
+GROUP BY 
+source
+ORDER BY 
+event_count DESC
+LIMIT 
+5;
+
+/* Property damage totals by state and event type. Ordered by state and event type in alphabetical order */
+
+SELECT 
+state, 
+event_type, 
+SUM(damage_property) AS total_property_damage
+FROM 
+severe_weather
+GROUP BY 
+state,
+event_type
+ORDER BY 
+state ASC, 
+event_type ASC;
+
+/* Longest lasting weather event */
+
+SELECT 
+event_id, 
+event_type, 
+state,
+event_begin_time, 
+event_end_time, 
+TIMESTAMPDIFF('days', event_begin_time, event_end_time) AS duration_days
+FROM 
+severe_weather
+ORDER BY
+duration_days DESC
+LIMIT 
+1;
+
+/* Listing all weather events and sequencing events by county and storm. */
+
+SELECT 
+  cz_name AS county_name,
+  state,
+  event_id,
+  event_type,
+  episode_id,
+  DENSE_RANK() OVER (
+    PARTITION BY cz_name, state
+    ORDER BY episode_id
+  ) AS episode_sequence
+FROM 
+  severe_weather
+WHERE 
+  cz_type = 'C'
+ORDER BY 
+  cz_name ASC,
+  episode_sequence ASC;
+
+  /* Summarizing property damage and cumulative damage for each month. */
+
+  SELECT 
+  EXTRACT(month FROM event_begin_time) AS month,
+  SUM(damage_property) AS damage,
+  SUM(SUM(damage_property)) OVER (
+    ORDER BY EXTRACT(month FROM event_begin_time)
+  ) AS cumulative_damage
+FROM 
+  severe_weather
+GROUP BY 
+  EXTRACT(month FROM event_begin_time)
+ORDER BY 
+  month ASC;
+
+  /* Count events by source and classify source category */
+
+SELECT 
+  source,
+  COUNT(*) AS event_count,
+  CASE 
+    WHEN COUNT(*) > 2000 THEN 'major source'
+    ELSE 'minor source'
+  END AS source_category
+FROM 
+  severe_weather
+GROUP BY 
+  source
+ORDER BY 
+  event_count DESC;
+
+  /* Create a table to store state sizes. */
+CREATE TABLE state_sizes
+(
+state_fips_code INTEGER,
+state_name STRING,
+area_land_meters INTEGER,
+area_water_meters INTEGER
+);
+/* List the files in the staging area (S3). */
+LIST @severe_weather;
+/* Load the state sizing data. */
+COPY INTO state_sizes
+FROM @severe_weather/state_sizing.csv
+file_format = csv_format;
+/* Preview data in the state sizing table. */
+SELECT * FROM state_sizes LIMIT 5;
+
+
+  /* Storms per square kilometer by state or territory */
+
+WITH state_area_km2 AS (
+  SELECT 
+    state_fips_code,
+    state_name,
+    ROUND(area_land_meters / 1000000, 2) AS land_sq_km
+  FROM 
+    state_sizes
+),
+
+storm_counts AS (
+  SELECT 
+    state_fips_code,
+    COUNT(*) AS storm_count
+  FROM 
+    severe_weather
+  GROUP BY 
+    state_fips_code
+),
+
+storm_density AS (
+  SELECT 
+    state_area_km2.state_name,
+    storm_counts.storm_count,
+    state_area_km2.land_sq_km,
+    ROUND(storm_counts.storm_count / state_area_km2.land_sq_km, 2) AS storms_per_sq_km
+  FROM 
+    state_area_km2
+  JOIN 
+    storm_counts
+  ON 
+    state_area_km2.state_fips_code = storm_counts.state_fips_code
+)
+
+SELECT 
+  *
+FROM 
+  storm_density
+ORDER BY 
+  storms_per_sq_km DESC;
